@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>User Page</title>
+</head>
+<body>
+  <h1 id="username"></h1>
+  <button id="subBtn"></button>
+  <p id="subCount"></p>
+
+  <h2>Videos</h2>
+  <ul id="userVideos"></ul>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const username = params.get("username");
+
+    async function loadUser() {
+      const res = await fetch(`/api/user/${username}`);
+      const data = await res.json();
+      document.getElementById("username").textContent = data.username;
+      document.getElementById("subCount").textContent = `Subscribers: ${data.subscribers}`;
+      document.getElementById("subBtn").textContent = `Subscribe to ${data.username}`;
+
+      const list = document.getElementById("userVideos");
+      list.innerHTML = "";
+      data.videos.forEach(v => {
+        const li = document.createElement("li");
+        li.innerHTML = `<img src="/thumbnails/${v.thumbnail}" width="120"> <a href="watch.html?id=${v.id}">${v.title}</a>`;
+        list.appendChild(li);
+      });
+    }
+
+    document.getElementById("subBtn").addEventListener("click", async () => {
+      const res = await fetch(`/api/subscribe/${username}`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById("subCount").textContent = `Subscribers: ${data.subscribers}`;
+      }
+    });
+
+    loadUser();
+  </script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Watch Video</title>
+</head>
+<body>
+  <h1 id="videoTitle"></h1>
+  <video id="videoPlayer" controls width="640"></video>
+  <p>Uploader: <a id="uploaderLink"></a></p>
+
+  <button id="likeBtn">Like</button>
+  <span id="likeCount"></span>
+
+  <button id="subBtn"></button>
+  <p id="subCount"></p>
+
+  <h2>Change Thumbnail</h2>
+  <form id="thumbForm" enctype="multipart/form-data">
+    <input type="file" name="thumbnail" accept="image/*" required>
+    <button type="submit">Update Thumbnail</button>
+  </form>
+
+  <h2>Comments</h2>
+  <ul id="comments"></ul>
+  <form id="commentForm">
+    <input type="text" name="text" placeholder="Write a comment" required>
+    <button type="submit">Post</button>
+  </form>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const videoId = params.get("id");
+    let uploader = "";
+
+    async function loadVideo() {
+      const res = await fetch(`/api/videos/${videoId}`);
+      const video = await res.json();
+      uploader = video.uploader;
+      document.getElementById("videoTitle").textContent = video.title;
+      document.getElementById("videoPlayer").src = `/videos/${video.filename}`;
+      document.getElementById("uploaderLink").textContent = video.uploader;
+      document.getElementById("uploaderLink").href = `user.html?username=${video.uploader}`;
+      document.getElementById("likeCount").textContent = `${video.likes.length} likes`;
+      renderComments(video.comments);
+
+      document.getElementById("subBtn").textContent = `Subscribe to ${uploader}`;
+      const userRes = await fetch(`/api/user/${uploader}`);
+      const user = await userRes.json();
+      document.getElementById("subCount").textContent = `Subscribers: ${user.subscribers}`;
+    }
+
+    function renderComments(comments) {
+      const list = document.getElementById("comments");
+      list.innerHTML = "";
+      comments.forEach(c => {
+        const li = document.createElement("li");
+        li.textContent = `${c.user}: ${c.text}`;
+        list.appendChild(li);
+      });
+    }
+
+    document.getElementById("likeBtn").addEventListener("click", async () => {
+      const res = await fetch(`/api/videos/${videoId}/like`, { method: "POST" });
+      const data = await res.json();
+      document.getElementById("likeCount").textContent = `${data.likes} likes`;
+    });
+
+    document.getElementById("subBtn").addEventListener("click", async () => {
+      const res = await fetch(`/api/subscribe/${uploader}`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById("subCount").textContent = `Subscribers: ${data.subscribers}`;
+      }
+    });
+
+    document.getElementById("thumbForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const res = await fetch(`/api/videos/${videoId}/thumbnail`, { method: "POST", body: formData });
+      const data = await res.json();
+      alert(data.success ? "Thumbnail updated" : data.error);
+    });
+
+    document.getElementById("commentForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = e.target.text.value;
+      const res = await fetch(`/api/videos/${videoId}/comment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      const list = document.getElementById("comments");
+      const li = document.createElement("li");
+      li.textContent = `${data.user}: ${data.text}`;
+      list.appendChild(li);
+      e.target.reset();
+    });
+
+    loadVideo();
+  </script>
+</body>
+</html>
