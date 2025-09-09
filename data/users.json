@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1757455478976,
+    "username": "miles",
+    "password": "$2b$10$mzMpjAvMPw98uw/fDSv7NexPeJ/u80Y3WciyANVtxLYmzvQvpJPii",
+    "subscribers": [
+      "miles",
+      "ma"
+    ]
+  },
+  {
+    "id": 1757455788998,
+    "username": "ma",
+    "password": "$2b$10$FX01zPi0FXvHcXtcsX6t0.w0QHxIkkByhlX8tdx4fboQpnXtn.9a2",
+    "subscribers": []
+  }
+]
