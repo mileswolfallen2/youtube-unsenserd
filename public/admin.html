@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Panel - MiniTube</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="admin.js" defer></script>
+</head>
+<body>
+  <h1>Admin Panel</h1>
+  <section>
+    <h2>Delete User Account</h2>
+    <form id="deleteUserForm">
+      <input type="text" id="deleteUsername" placeholder="Username" required>
+      <button type="submit">Delete User</button>
+    </form>
+    <p id="userDeleteMsg"></p>
+  </section>
+  <section>
+    <h2>Delete Video</h2>
+    <form id="deleteVideoForm">
+      <input type="text" id="deleteVideoId" placeholder="Video ID" required>
+      <button type="submit">Delete Video</button>
+    </form>
+    <p id="videoDeleteMsg"></p>
+  </section>
+</body>
+</html>

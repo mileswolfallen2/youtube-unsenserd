@@ -6,12 +6,16 @@
     "subscribers": [
       "ma",
       "miles"
+    ],
+    "watchHistory": [
+      1757455619505
     ]
   },
   {
     "id": 1757455788998,
     "username": "ma",
     "password": "$2b$10$FX01zPi0FXvHcXtcsX6t0.w0QHxIkkByhlX8tdx4fboQpnXtn.9a2",
-    "subscribers": []
+    "subscribers": [],
+    "watchHistory": []
   }
 ]

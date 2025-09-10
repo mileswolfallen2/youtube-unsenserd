@@ -5,33 +5,59 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1 id="videoTitle"></h1>
-  <video id="videoPlayer" controls width="640"></video>
-  <p>Uploader: <a id="uploaderLink"></a></p>
 
-  <button id="likeBtn">Like</button>
-  <span id="likeCount"></span>
+<div style="display: flex; gap: 2em; align-items: flex-start;">
+  <main style="flex: 2;">
+    <h1 id="videoTitle"></h1>
+    <video id="videoPlayer" controls width="640"></video>
+    <p>Uploader: <a id="uploaderLink"></a></p>
 
-  <button id="subBtn"></button>
-  <p id="subCount"></p>
+    <button id="likeBtn">Like</button>
+    <span id="likeCount"></span>
 
-  <h2>Change Thumbnail</h2>
-  <form id="thumbForm" enctype="multipart/form-data">
-    <input type="file" name="thumbnail" accept="image/*" required>
-    <button type="submit">Update Thumbnail</button>
-  </form>
+    <button id="subBtn"></button>
+    <p id="subCount"></p>
 
-  <h2>Comments</h2>
-  <ul id="comments"></ul>
-  <form id="commentForm">
-    <input type="text" name="text" placeholder="Write a comment" required>
-    <button type="submit">Post</button>
-  </form>
+    <div id="thumbSection" style="display:none">
+      <h2>Change Thumbnail</h2>
+      <form id="thumbForm" enctype="multipart/form-data">
+        <input type="file" name="thumbnail" accept="image/*" required>
+        <button type="submit">Update Thumbnail</button>
+      </form>
+    </div>
+
+    <h2>Comments</h2>
+    <ul id="comments"></ul>
+    <form id="commentForm">
+      <input type="text" name="text" placeholder="Write a comment" required>
+      <button type="submit">Post</button>
+    </form>
+  </main>
+  <aside style="flex: 1; min-width: 220px;">
+    <h2>Recommended</h2>
+    <ul id="recommendedVideos"></ul>
+    <h2>Watch Later</h2>
+    <ul id="watchLaterList"></ul>
+    <h2>Watch History</h2>
+    <ul id="watchHistoryList"></ul>
+  </aside>
+</div>
 
   <script>
     const params = new URLSearchParams(window.location.search);
     const videoId = params.get("id");
     let uploader = "";
+
+
+    async function getCurrentUser() {
+      try {
+        const res = await fetch('/api/me');
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
 
     async function loadVideo() {
       const res = await fetch(`/api/videos/${videoId}`);
@@ -48,7 +74,67 @@
       const userRes = await fetch(`/api/user/${uploader}`);
       const user = await userRes.json();
       document.getElementById("subCount").textContent = `Subscribers: ${user.subscribers}`;
+
+      // Only show Change Thumbnail if current user is uploader
+      const me = await getCurrentUser();
+      if (me && me.username === uploader) {
+        document.getElementById("thumbSection").style.display = "block";
+      } else {
+        document.getElementById("thumbSection").style.display = "none";
+      }
+
+      // Load recommended videos
+      loadRecommended(videoId);
     }
+
+    async function loadRecommended(currentId) {
+      let videos = [];
+      let res;
+      try {
+        res = await fetch('/api/recommended');
+        if (res.ok) {
+          videos = await res.json();
+        } else {
+          // Not logged in, fallback to all videos
+          res = await fetch('/api/videos');
+          videos = await res.json();
+        }
+      } catch {
+        // fallback
+        res = await fetch('/api/videos');
+        videos = await res.json();
+      }
+      // Remove current video
+      videos = videos.filter(v => v.id != currentId);
+      // Show top 6
+      const top = videos.slice(0, 6);
+      const list = document.getElementById('recommendedVideos');
+      list.innerHTML = '';
+      for (const v of top) {
+        const li = document.createElement('li');
+        li.style.display = 'flex';
+        li.style.alignItems = 'center';
+        li.style.marginBottom = '1em';
+        li.innerHTML = `
+          <a href="watch.html?id=${v.id}" style="display:flex;align-items:center;text-decoration:none;color:inherit;">
+            <img src="/thumbnails/${v.thumbnail}" width="80" height="60" style="object-fit:cover;border-radius:6px;margin-right:10px;">
+            <div>
+              <div style="font-weight:bold;">${v.title}</div>
+              <div style="font-size:0.9em;color:#aaa;">by ${v.uploader}</div>
+              <div style="font-size:0.9em;color:#aaa;">${v.likes?.length || 0} likes</div>
+            </div>
+          </a>
+        `;
+        list.appendChild(li);
+      }
+    }
+  // Add /api/me endpoint to server.js if not present:
+  // app.get("/api/me", (req, res) => {
+  //   if (!req.session.userId) return res.status(401).json({});
+  //   const user = users.find(u => u.id === req.session.userId);
+  //   if (!user) return res.status(401).json({});
+  //   res.json({ username: user.username });
+  // });
 
     function renderComments(comments) {
       const list = document.getElementById("comments");

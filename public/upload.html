@@ -14,6 +14,39 @@
     <button type="submit">Upload</button>
   </form>
 
+      <label>Title</label>
+      <input type="text" name="title" id="videoTitleInput" placeholder="Video Title" required>
+
+      <label>Tags (comma separated)</label>
+      <input type="text" name="tags" id="videoTagsInput" placeholder="e.g. music,funny,cat">
+
+      <label>Uploader</label>
+      <input type="text" id="uploaderInput" readonly>
+
+      <label>Video File (.mp4 or .webm)</label>
+      <input type="file" name="video" accept=".mp4,.webm" required>
+
+      <label><input type="checkbox" id="customThumbCheck"> Upload custom thumbnail</label>
+      <input type="file" name="thumbnail" id="customThumbInput" accept="image/*" style="display:none">
+
+      <button type="submit">Upload</button>
+    </form>
+
   <p><a href="index.html">Back to Home</a></p>
+    <script>
+      // Show/hide custom thumbnail input
+      document.addEventListener('DOMContentLoaded', () => {
+        const check = document.getElementById('customThumbCheck');
+        const thumbInput = document.getElementById('customThumbInput');
+        check.addEventListener('change', () => {
+          thumbInput.style.display = check.checked ? '' : 'none';
+          thumbInput.required = check.checked;
+        });
+        // Fetch current user for uploader field
+        fetch('/api/me').then(r => r.json()).then(me => {
+          if (me && me.username) document.getElementById('uploaderInput').value = me.username;
+        });
+      });
+    </script>
 </body>
 </html>

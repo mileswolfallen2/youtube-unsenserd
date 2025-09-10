@@ -6,12 +6,22 @@
   <script src="app.js" defer></script>
 </head>
 <body>
-  <h1>MiniTube</h1>
-
-  <!-- Upload button -->
-  <p><a href="upload.html"><button>Upload Video</button></a></p>
-  <P>   <a href="login.html"><button>login</button></a></P>
-
-  <ul id="videoList"></ul>
+<div style="display: flex; gap: 2em; align-items: flex-start;">
+  <main style="flex: 2;">
+    <h1>MiniTube</h1>
+    <!-- Upload button -->
+    <p><a href="upload.html"><button>Upload Video</button></a></p>
+    <p><a href="login.html"><button>login</button></a></p>
+    <ul id="videoList"></ul>
+  </main>
+  <aside style="flex: 1; min-width: 220px;">
+    <h2>Recommended</h2>
+    <ul id="recommendedVideos"></ul>
+    <h2>Watch Later</h2>
+    <ul id="watchLaterList"></ul>
+    <h2>Watch History</h2>
+    <ul id="watchHistoryList"></ul>
+  </aside>
+</div>
 </body>
 </html>

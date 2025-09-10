@@ -1,4 +1,7 @@
 
+// ...existing code...
+
+
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
@@ -16,6 +19,9 @@ const videoDbFile = "./data/videos.json";
 
 let users = fs.existsSync(userDbFile) ? JSON.parse(fs.readFileSync(userDbFile)) : [];
 let videos = fs.existsSync(videoDbFile) ? JSON.parse(fs.readFileSync(videoDbFile)) : [];
+
+// Ensure all users have a watchHistory array
+users.forEach(u => { if (!u.watchHistory) u.watchHistory = []; });
 
 // Middleware
 app.use(express.static("public"));
@@ -102,44 +108,117 @@ app.post("/api/logout", (req, res) => {
 // ----------------- Videos -----------------
 app.get("/api/videos", (req, res) => res.json(videos));
 
-app.post("/api/upload", requireLogin, uploadVideo.single("video"), (req, res) => {
-  const user = users.find(u => u.id === req.session.userId);
-  const videoPath = req.file.path;
-  const thumbFilename = `${Date.now()}.png`;
-  const thumbPath = path.join("thumbnails", thumbFilename);
+// Support tags, title, and custom thumbnail
+const uploadFields = uploadVideo.fields([
+  { name: 'video', maxCount: 1 },
+  { name: 'thumbnail', maxCount: 1 }
+]);
 
-  // Generate thumbnail at 2 seconds
-  ffmpeg(videoPath)
-    .screenshots({
-      timestamps: ['2'],
-      filename: thumbFilename,
-      folder: 'thumbnails',
-      size: '320x240'
-    })
-    .on('end', () => {
+app.post("/api/upload", requireLogin, (req, res) => {
+  uploadFields(req, res, function (err) {
+    if (err) return res.status(400).json({ error: err.message });
+    const user = users.find(u => u.id === req.session.userId);
+    if (!req.files || !req.files['video'] || !req.files['video'][0]) {
+      return res.status(400).json({ error: "No video uploaded" });
+    }
+    const videoFile = req.files['video'][0];
+    const title = req.body.title || videoFile.originalname;
+    const tags = (req.body.tags || "").split(",").map(t => t.trim()).filter(Boolean);
+    const videoId = Date.now();
+
+    // If custom thumbnail provided, use it
+    let thumbFilename = null;
+    if (req.files['thumbnail'] && req.files['thumbnail'][0]) {
+      thumbFilename = req.files['thumbnail'][0].filename;
+      finishUpload();
+    } else {
+      // Auto-generate thumbnail
+      thumbFilename = `${videoId}.png`;
+      const videoPath = videoFile.path;
+      ffmpeg(videoPath)
+        .screenshots({
+          timestamps: ['2'],
+          filename: thumbFilename,
+          folder: 'thumbnails',
+          size: '320x240'
+        })
+        .on('end', finishUpload)
+        .on('error', err => {
+          console.error("Thumbnail generation error:", err);
+          finishUpload("Video uploaded but thumbnail generation failed.");
+        });
+    }
+
+    function finishUpload(thumbnailError) {
       const newVideo = {
-        id: Date.now(),
-        title: req.file.originalname,
-        filename: req.file.filename,
+        id: videoId,
+        title,
+        filename: videoFile.filename,
         uploader: user.username,
         likes: [],
         comments: [],
-        thumbnail: thumbFilename
+        thumbnail: thumbFilename,
+        tags
       };
       videos.push(newVideo);
       fs.writeFileSync(videoDbFile, JSON.stringify(videos, null, 2));
-      res.json({ success: true, video: newVideo });
-    })
-    .on('error', err => {
-      console.error("Thumbnail generation error:", err);
-      res.status(500).json({ error: "Video uploaded but thumbnail generation failed." });
-    });
+      if (thumbnailError) {
+        res.status(500).json({ error: thumbnailError, video: newVideo });
+      } else {
+        res.json({ success: true, video: newVideo });
+      }
+    }
+  });
 });
 
+
+// Get video and record watch history if logged in
 app.get("/api/videos/:id", (req, res) => {
   const video = videos.find(v => v.id == req.params.id);
   if (!video) return res.status(404).json({ error: "Not found" });
+
+  // Record watch history for logged-in user
+  if (req.session.userId) {
+    const user = users.find(u => u.id === req.session.userId);
+    if (user && !user.watchHistory.includes(video.id)) {
+      user.watchHistory.push(video.id);
+      fs.writeFileSync(userDbFile, JSON.stringify(users, null, 2));
+    }
+  }
   res.json(video);
+});
+// Personalized recommendations based on tags and watch history
+app.get("/api/recommended", requireLogin, (req, res) => {
+  const user = users.find(u => u.id === req.session.userId);
+  if (!user) return res.status(401).json([]);
+
+  // Get videos not watched yet
+  let unwatched = videos.filter(v => !user.watchHistory.includes(v.id));
+
+  // Get tags from recently watched videos (last 5)
+  let recent = user.watchHistory.slice(-5).map(id => videos.find(v => v.id === id)).filter(Boolean);
+  let tagCounts = {};
+  recent.forEach(v => {
+    if (Array.isArray(v.tags)) {
+      v.tags.forEach(tag => {
+        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      });
+    }
+  });
+  // Score unwatched videos by tag overlap
+  unwatched.forEach(v => {
+    v._score = 0;
+    if (Array.isArray(v.tags)) {
+      v.tags.forEach(tag => {
+        v._score += tagCounts[tag] || 0;
+      });
+    }
+    // Boost by likes
+    v._score += (v.likes?.length || 0) * 0.2;
+  });
+  // Sort by score, then most recent
+  unwatched.sort((a, b) => b._score - a._score || b.id - a.id);
+  res.json(unwatched.slice(0, 8));
 });
 
 // Change thumbnail
@@ -211,7 +290,36 @@ app.post("/api/subscribe/:username", requireLogin, (req, res) => {
   res.json({ success: true, subscribers: target.subscribers.length });
 });
 
+
 // ----------------- Start -----------------
 app.listen(PORT, () =>
   console.log(`MiniTube running at http://localhost:${PORT}`)
 );
+
+// ----------------- Admin Panel (MUST be at the very end) -----------------
+function requireAdmin(req, res, next) {
+  const user = users.find(u => u.id === req.session.userId);
+  if (!user || !user.isAdmin) {
+    return res.status(403).json({ error: 'Admin only' });
+  }
+  next();
+}
+
+app.post('/api/admin/delete-user', requireLogin, requireAdmin, (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username required' });
+  const idx = users.findIndex(u => u.username === username);
+  if (idx === -1) return res.status(404).json({ error: 'User not found' });
+  users.splice(idx, 1);
+  fs.writeFileSync(userDbFile, JSON.stringify(users, null, 2));
+  res.json({ success: true });
+});
+
+app.post('/api/admin/delete-video', requireLogin, requireAdmin, (req, res) => {
+  const { id } = req.body;
+  const idx = videos.findIndex(v => String(v.id) === String(id));
+  if (idx === -1) return res.status(404).json({ error: 'Video not found' });
+  videos.splice(idx, 1);
+  fs.writeFileSync(videoDbFile, JSON.stringify(videos, null, 2));
+  res.json({ success: true });
+});
